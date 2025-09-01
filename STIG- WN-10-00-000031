@@ -1,13 +1,19 @@
+.NOTES
+  Author: Jordan Jenko
+  LinkedIn: https://www.linkedin.com/in/jordan-jenko-7712a6b5/
+  Github: https://github.com/Oroborosova
+  Date Created: 08/30/2025
+  Date Modified: 08/30/2025
+  Version: 1.0
+  CVEs: N/A
+  PlugIn ID's: NA
+  STIG ID: WN10-AU-000031
 
-
-
-
-
-
-
-
-
-
+.TESTED ON
+  Dates Tested: 09/01/2025
+  Tested By: Jordan Jenko
+  Systems Tested: Windows 10
+  Powershell Version: Powershell ISE
 
 <#
 .SYNOPSIS
