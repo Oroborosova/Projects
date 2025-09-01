@@ -1,0 +1,73 @@
+
+
+
+
+
+
+
+
+
+
+
+<#
+.SYNOPSIS
+    STIG Fix - WN10-00-000031
+    Enforce BitLocker PIN requirement at startup.
+
+.DESCRIPTION
+    Ensures the following registry values are configured to require
+    a BitLocker PIN (with TPM) for pre-boot authentication:
+
+      HKLM:\SOFTWARE\Policies\Microsoft\FVE\
+        - UseAdvancedStartup = 1
+        - UseTPMPIN = 1
+        - UseTPMKeyPIN = 1
+
+.NOTES
+    Run this script in PowerShell ISE **as Administrator**.
+#>
+
+# Define registry path and required values
+$regPath = 'HKLM:\SOFTWARE\Policies\Microsoft\FVE'
+$settings = @{
+    'UseAdvancedStartup' = 1
+    'UseTPMPIN'           = 1
+    'UseTPMKeyPIN'        = 1
+}
+
+Write-Host "Applying STIG WN10-00-000031: Require BitLocker PIN at startup" -ForegroundColor Cyan
+
+# Ensure registry path exists
+if (-not (Test-Path $regPath)) {
+    Write-Host "Registry path not found. Creating: $regPath" -ForegroundColor Yellow
+    New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft' -Name 'FVE' -Force | Out-Null
+}
+
+# Apply each setting and report status
+foreach ($name in $settings.Keys) {
+    $desired = $settings[$name]
+    try {
+        $current = (Get-ItemProperty -Path $regPath -Name $name -ErrorAction Stop).$name
+        Write-Host "Current $name = $current" -ForegroundColor Gray
+    } catch {
+        $current = $null
+        Write-Host "$name not currently set." -ForegroundColor Yellow
+    }
+
+    if ($current -ne $desired) {
+        Write-Host "Setting $name to $desired..." -ForegroundColor Green
+        New-ItemProperty -Path $regPath -Name $name -PropertyType DWord -Value $desired -Force | Out-Null
+    } else {
+        Write-Host "$name is already compliant ($current)." -ForegroundColor Green
+    }
+}
+
+# Optional: Enforce Group Policy update to reflect registry changes
+Write-Host "Forcing Group Policy update (may require a reboot to take effect)..." -ForegroundColor Cyan
+gpupdate /force | Out-Null
+
+# Verification
+Write-Host "Verifying final registry values:" -ForegroundColor Cyan
+Get-ItemProperty -Path $regPath -Name $settings.Keys | Format-List
+
+Write-Host "STIG WN10-00-000031 remediation complete." -ForegroundColor Cyan
