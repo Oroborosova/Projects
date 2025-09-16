@@ -1,0 +1,53 @@
+
+
+
+
+<#
+.SYNOPSIS
+    STIG Fix - WN10-00-000032
+    Enforce minimum length for BitLocker startup PIN (6 digits or greater).
+
+.DESCRIPTION
+    This script sets the registry value required by the STIG:
+      HKLM:\SOFTWARE\Policies\Microsoft\FVE\MinimumPIN
+    to a DWORD value of 6 (or greater), so the startup PIN for BitLocker must be at least 6 characters/digits.
+
+.NOTES
+    Run as Administrator.
+#>
+
+# Define registry path, name, and required minimum
+$regPath = 'HKLM:\SOFTWARE\Policies\Microsoft\FVE'
+$regName = 'MinimumPIN'
+$requiredMinimum = 6
+
+Write-Host "Applying STIG WN10-00-000032: Minimum BitLocker PIN length = $requiredMinimum" -ForegroundColor Cyan
+
+# Ensure the registry key exists
+if (-not (Test-Path $regPath)) {
+    Write-Host "Registry path not found. Creating: $regPath" -ForegroundColor Yellow
+    New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft' -Name 'FVE' -Force | Out-Null
+}
+
+# Read current value if exists
+$currentValue = $null
+try {
+    $currentValue = (Get-ItemProperty -Path $regPath -Name $regName -ErrorAction Stop).$regName
+    Write-Host "Current MinimumPIN value: $currentValue" -ForegroundColor Gray
+} catch {
+    Write-Host "MinimumPIN is not currently set." -ForegroundColor Yellow
+}
+
+# Set or update the registry value if it's missing or less than the required minimum
+if (($null -eq $currentValue) -or ($currentValue -lt $requiredMinimum)) {
+    Write-Host "Setting MinimumPIN to $requiredMinimum..." -ForegroundColor Green
+    New-ItemProperty -Path $regPath -Name $regName -PropertyType DWord -Value $requiredMinimum -Force | Out-Null
+} else {
+    Write-Host "MinimumPIN is already compliant ($currentValue >= $requiredMinimum)." -ForegroundColor Green
+}
+
+# Verification
+$verified = (Get-ItemProperty -Path $regPath -Name $regName).$regName
+Write-Host "Verified MinimumPIN value is: $verified" -ForegroundColor Cyan
+
+Write-Host "STIG WN10-00-000032 remediation complete." -ForegroundColor Cyan
