@@ -1,0 +1,74 @@
+
+<#
+.SYNOPSIS
+    STIG Fix – WN10-00-000395
+    Disable any configured portproxy entries.
+
+.DESCRIPTION
+    Removes all existing portproxy rules using netsh, so that no portproxy (v4tov4 tcp, etc.) is enabled.
+    Then verifies the configuration to ensure empty.
+
+.NOTES
+    Must be run with Administrator privileges.
+#>
+
+Write-Host "Applying STIG WN10-00-000395: Remove any portproxy configuration" -ForegroundColor Cyan
+
+# Function to list current portproxy rules
+function Get-PortProxyRules {
+    netsh interface portproxy show all
+}
+
+# Function to remove all portproxy rules
+function Remove-AllPortProxyRules {
+    $rules = Get-PortProxyRules
+
+    if ($rules -match "Listen on IPv4 Address") {
+        # Parse the output; skip headers, attempt to extract entries
+        # Each rule is usually displayed as a pair: listen address, listen port, connect address, connect port
+        # We can attempt to read lines that look like entries
+
+        $lines = $rules | Select-String "Listen on IPv4" -Context 0,3
+
+        # Alternatively, get lines after headers that contain meaningful entries
+        $allLines = $rules -split "`n" | ForEach-Object { $_.Trim() } 
+        # Find the index after header separator
+        $start = ($allLines | ForEach-Object { $_ }) |
+                 Select-Object -SkipWhile { $_ -notmatch "Persistent Port Proxies" } |
+                 ForEach-Object { 0 } # This is heuristic; adjust if output differs
+
+        # Easier version: loop through possible listen addresses/ports by parsing netsh output manually is complex,
+        # so instead query specific known rules via registry check, or delete wildcard entries.
+
+        # A simpler brute force: try deleting all with "netsh interface portproxy reset"
+        # That resets all portproxy configuration.
+
+        Write-Host "Resetting all portproxy rules" -ForegroundColor Yellow
+        netsh interface portproxy reset
+    } else {
+        Write-Host "No portproxy rules found." -ForegroundColor Green
+    }
+}
+
+# Show current rules
+Write-Host "Current portproxy configuration:" -ForegroundColor Gray
+Get-PortProxyRules | Write-Host
+
+# Remove any existing rules
+Remove-AllPortProxyRules
+
+# Wait a moment
+Start-Sleep -Seconds 2
+
+# Verification
+Write-Host "Verifying portproxy configuration after remediation:" -ForegroundColor Gray
+$result = Get-PortProxyRules
+
+if ($result -match "Listen on IPv4 Address") {
+    Write-Host "WARNING: Some portproxy rules are still present!" -ForegroundColor Red
+    Write-Host $result
+} else {
+    Write-Host "No portproxy rules found. System is now compliant with WN10-00-000395." -ForegroundColor Green
+}
+
+Write-Host "STIG WN10-00-000395 remediation complete." -ForegroundColor Cyan
