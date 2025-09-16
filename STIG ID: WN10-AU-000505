@@ -1,0 +1,64 @@
+
+<#
+.SYNOPSIS
+    STIG Fix - WN10-AU-000505
+    Ensures the Security event log maximum size is configured to 1024000 KB or greater.
+
+.DESCRIPTION
+    This script creates or updates the registry value:
+      HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\Security\MaxSize
+    Sets it to 1024000 KB (or more) per requirement.
+
+.NOTES
+    Must run with Administrator privileges.
+#>
+
+# Define required values
+$regPath = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\Security'
+$regName = 'MaxSize'
+$requiredSizeKB = 1024000  # required minimum size in KB
+
+Write-Host "Applying STIG WN10-AU-000505: Security Event Log Size ≥ $requiredSizeKB KB" -ForegroundColor Cyan
+
+# Ensure the registry key exists
+if (-not (Test-Path $regPath)) {
+    Write-Host "Registry path not found. Creating: $regPath" -ForegroundColor Yellow
+    try {
+        New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog' -Name 'Security' -Force | Out-Null
+        Write-Host "Created registry path: $regPath" -ForegroundColor Green
+    }
+    catch {
+        Write-Error "Failed to create registry path: $_"
+        exit 1
+    }
+}
+
+# Read current value if exists
+$currentValue = $null
+try {
+    $currentValue = (Get-ItemProperty -Path $regPath -Name $regName -ErrorAction Stop).$regName
+    Write-Host "Current MaxSize = $currentValue KB" -ForegroundColor Gray
+}
+catch {
+    Write-Host "MaxSize not currently set." -ForegroundColor Yellow
+}
+
+# If missing or less than required, set or update it
+if (($null -eq $currentValue) -or ($currentValue -lt $requiredSizeKB)) {
+    Write-Host "Setting $regName to $requiredSizeKB..." -ForegroundColor Green
+    New-ItemProperty -Path $regPath -Name $regName -PropertyType DWord -Value $requiredSizeKB -Force | Out-Null
+}
+else {
+    Write-Host "$regName is already compliant ($currentValue KB ≥ $requiredSizeKB KB)." -ForegroundColor Green
+}
+
+# Verification
+try {
+    $verified = (Get-ItemProperty -Path $regPath -Name $regName -ErrorAction Stop).$regName
+    Write-Host "Verification: MaxSize is now set to $verified KB" -ForegroundColor Cyan
+}
+catch {
+    Write-Error "Failed to verify the registry value: $_"
+}
+
+Write-Host "STIG WN10-AU-000505 remediation complete." -ForegroundColor Cyan
