@@ -1,0 +1,63 @@
+<#
+.SYNOPSIS
+    STIG Fix – WN10-AU-000510
+
+.DESCRIPTION
+    Ensures the System event log size is configured to 32768 KB or greater by setting the registry value:
+      HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\System\MaxSize
+
+    According to STIG WN10-AU-000510 the value must be at least 32768 KB. :contentReference[oaicite:1]{index=1}
+
+.NOTES
+    Run this script with Administrator privileges.
+#>
+
+# Define registry path, value name, and required size
+$regPath = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\System'
+$regName = 'MaxSize'
+$requiredSizeKB = 32768   # Minimum size in KB
+
+Write-Host "Applying STIG WN10-AU-000510: Set System event log MaxSize ≥ $requiredSizeKB KB" -ForegroundColor Cyan
+
+# Ensure the registry key exists
+if (-not (Test-Path $regPath)) {
+    Write-Host "Registry path not found. Creating path: $regPath" -ForegroundColor Yellow
+    try {
+        # Create the parent path, then the System subkey
+        New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog' -Name 'System' -Force | Out-Null
+        Write-Host "Created key: $regPath" -ForegroundColor Green
+    }
+    catch {
+        Write-Error "Failed to create registry path: $_"
+        exit 1
+    }
+}
+
+# Read current value if it exists
+$currentValue = $null
+try {
+    $currentValue = (Get-ItemProperty -Path $regPath -Name $regName -ErrorAction Stop).$regName
+    Write-Host "Current MaxSize = $currentValue KB" -ForegroundColor Gray
+}
+catch {
+    Write-Host "MaxSize not currently set." -ForegroundColor Yellow
+}
+
+# Compare and set if needed
+if (($null -eq $currentValue) -or ($currentValue -lt $requiredSizeKB)) {
+    Write-Host "Setting $regName to $requiredSizeKB KB..." -ForegroundColor Green
+    New-ItemProperty -Path $regPath -Name $regName -PropertyType DWord -Value $requiredSizeKB -Force | Out-Null
+} else {
+    Write-Host "MaxSize is already compliant ($currentValue KB ≥ $requiredSizeKB KB)." -ForegroundColor Green
+}
+
+# Verification
+try {
+    $verifiedValue = (Get-ItemProperty -Path $regPath -Name $regName -ErrorAction Stop).$regName
+    Write-Host "Verification: $regName is now $verifiedValue KB" -ForegroundColor Cyan
+}
+catch {
+    Write-Error "Failed to verify the registry value: $_"
+}
+
+Write-Host "STIG WN10-AU-000510 remediation complete." -ForegroundColor Cyan
