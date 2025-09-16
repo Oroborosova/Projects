@@ -1,0 +1,64 @@
+
+<#
+.SYNOPSIS
+    STIG Fix - WN10-00-000150
+    Enable SEHOP (Structured Exception Handling Overwrite Protection).
+
+.DESCRIPTION
+    Sets the registry value:
+        HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel\DisableExceptionChainValidation
+    to 0 (REG_DWORD), to enable SEHOP per DISA STIG requirement.
+
+.NOTES
+    Run this script with Administrator privileges.
+#>
+
+# Define variables
+$regHive    = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel'
+$regName    = 'DisableExceptionChainValidation'
+$desiredValue = 0
+
+Write-Host "Applying STIG WN10-00-000150: Enabling SEHOP (DisableExceptionChainValidation = 0)" -ForegroundColor Cyan
+
+# Ensure the registry path exists
+if (-not (Test-Path $regHive)) {
+    Write-Host "Registry path does not exist: $regHive" -ForegroundColor Yellow
+    try {
+        New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -Name 'kernel' -Force | Out-Null
+        Write-Host "Created registry path: $regHive" -ForegroundColor Green
+    }
+    catch {
+        Write-Error "Failed to create registry path: $_"
+        exit 1
+    }
+}
+
+# Read current value if present
+$currentValue = $null
+try {
+    $currentValue = (Get-ItemProperty -Path $regHive -Name $regName -ErrorAction Stop).$regName
+    Write-Host "Current $regName = $currentValue" -ForegroundColor Gray
+}
+catch {
+    Write-Host "$regName not currently set." -ForegroundColor Yellow
+}
+
+# Set or update the registry value if it's not set or not compliant
+if (($null -eq $currentValue) -or ($currentValue -ne $desiredValue)) {
+    Write-Host "Setting $regName to $desiredValue (REG_DWORD)..." -ForegroundColor Green
+    New-ItemProperty -Path $regHive -Name $regName -PropertyType DWord -Value $desiredValue -Force | Out-Null
+}
+else {
+    Write-Host "$regName is already compliant ($currentValue)." -ForegroundColor Green
+}
+
+# Verification
+try {
+    $verifiedValue = (Get-ItemProperty -Path $regHive -Name $regName -ErrorAction Stop).$regName
+    Write-Host "Verification: $regName is now set to $verifiedValue" -ForegroundColor Cyan
+}
+catch {
+    Write-Error "Failed to verify the registry value: $_"
+}
+
+Write-Host "STIG WN10-00-000150 remediation complete." -ForegroundColor Cyan
