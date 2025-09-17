@@ -1,0 +1,84 @@
+
+<#
+.SYNOPSIS
+    STIG Fix – WN10-CC-000005
+    Disable camera access from the lock screen.
+
+.DESCRIPTION
+    Ensures that the registry value
+        HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization\NoLockScreenCamera
+    is configured to 1 (REG_DWORD) to prevent enabling the lock screen camera.
+
+    If the device has no camera, this setting is Not Applicable.
+
+.NOTES
+    Must run as Administrator.
+#>
+
+# Define registry path and value name
+$regPath  = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization'
+$regName  = 'NoLockScreenCamera'
+$desired = 1
+
+Write-Host "Applying STIG WN10-CC-000005: Disable camera access from lock screen" -ForegroundColor Cyan
+
+# Optional: check if there is a camera device present
+$cameraPresent = $false
+try {
+    $cameraDevices = Get-PnpDevice -Class Camera -ErrorAction SilentlyContinue
+    if ($cameraDevices) {
+        $cameraPresent = $true
+        Write-Host "Camera device(s) detected." -ForegroundColor Yellow
+    } else {
+        Write-Host "No camera device detected. Setting will still be applied, but this may be Not Applicable." -ForegroundColor Yellow
+    }
+}
+catch {
+    Write-Host "Unable to enumerate camera devices. Proceeding with configuration." -ForegroundColor Yellow
+}
+
+# Ensure the registry key exists
+if (-not (Test-Path $regPath)) {
+    Write-Host "Registry path not found. Creating: $regPath" -ForegroundColor Yellow
+    try {
+        New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows' -Name 'Personalization' -Force | Out-Null
+        Write-Host "Created registry key: $regPath" -ForegroundColor Green
+    }
+    catch {
+        Write-Error "Failed to create registry key: $_"
+        exit 1
+    }
+}
+
+# Get current value if present
+$currentValue = $null
+try {
+    $currentValue = (Get-ItemProperty -Path $regPath -Name $regName -ErrorAction Stop).$regName
+    Write-Host "Current value of $regName = $currentValue" -ForegroundColor Gray
+}
+catch {
+    Write-Host "$regName not currently set." -ForegroundColor Yellow
+}
+
+# If the current value is not set or not compliant, set it
+if (($null -eq $currentValue) -or ($currentValue -ne $desired)) {
+    Write-Host "Setting $regName to $desired (REG_DWORD)" -ForegroundColor Green
+    New-ItemProperty -Path $regPath -Name $regName -PropertyType DWord -Value $desired -Force | Out-Null
+} else {
+    Write-Host "$regName is already compliant ($currentValue)." -ForegroundColor Green
+}
+
+# Force policy update so the change takes effect (if being managed by Group Policy)
+Write-Host "Forcing Group Policy update..." -ForegroundColor Cyan
+gpupdate /force | Out-Null
+
+# Verification
+try {
+    $verified = (Get-ItemProperty -Path $regPath -Name $regName -ErrorAction Stop).$regName
+    Write-Host "Verified: $regName = $verified" -ForegroundColor Cyan
+}
+catch {
+    Write-Error "Failed to verify the registry value: $_"
+}
+
+Write-Host "STIG WN10-CC-000005 remediation complete." -ForegroundColor Cyan
