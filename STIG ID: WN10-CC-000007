@@ -1,0 +1,65 @@
+<#
+.SYNOPSIS
+    STIG Fix - WN10-CC-000007
+    Deny camera access when built-in or external camera is not covered, disabled, or disconnected.
+
+.DESCRIPTION
+    Ensures the registry entry:
+        HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam\Value
+    is set to the string "Deny", to block camera access by default per STIG requirement.
+
+.NOTES
+    Run this script **as Administrator**.
+#>
+
+# Define path & value
+$regHive        = "HKLM:"
+$regSubPath     = "SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam"
+$regFullPath    = Join-Path $regHive $regSubPath
+$regName        = "Value"
+$desiredData    = "Deny"
+
+Write-Host "Applying STIG WN10-CC-000007: Deny camera access when not in use" -ForegroundColor Cyan
+
+# Ensure the registry key path exists
+if (-not (Test-Path $regFullPath)) {
+    Write-Host "Registry path not found. Creating path: $regFullPath" -ForegroundColor Yellow
+    try {
+        New-Item -Path $regFullPath -Force | Out-Null
+        Write-Host "Created registry path: $regFullPath" -ForegroundColor Green
+    }
+    catch {
+        Write-Error "Failed to create registry path: $_"
+        exit 1
+    }
+}
+
+# Read current value (if exists)
+$currentValue = $null
+try {
+    $item = Get-ItemProperty -Path $regFullPath -Name $regName -ErrorAction Stop
+    $currentValue = $item.$regName
+    Write-Host "Current '$regName' = '$currentValue'" -ForegroundColor Gray
+}
+catch {
+    Write-Host "Registry value '$regName' not currently set at $regFullPath" -ForegroundColor Yellow
+}
+
+# Compare and set if needed
+if (($null -eq $currentValue) -or ($currentValue -ne $desiredData)) {
+    Write-Host "Setting '$regName' to '$desiredData' ..." -ForegroundColor Green
+    New-ItemProperty -Path $regFullPath -Name $regName -Value $desiredData -PropertyType String -Force | Out-Null
+} else {
+    Write-Host "'$regName' is already compliant ('$currentValue')" -ForegroundColor Green
+}
+
+# Verification
+try {
+    $verified = (Get-ItemProperty -Path $regFullPath -Name $regName -ErrorAction Stop).$regName
+    Write-Host "Verified: '$regName' = '$verified'" -ForegroundColor Cyan
+}
+catch {
+    Write-Error "Failed to verify the registry value: $_"
+}
+
+Write-Host "STIG WN10-CC-000007 remediation complete." -ForegroundColor Cyan
