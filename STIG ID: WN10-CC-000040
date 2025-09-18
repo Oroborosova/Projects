@@ -1,0 +1,63 @@
+
+<#
+.SYNOPSIS
+    STIG Fix – WN10-CC-000040
+    Disable insecure guest logons for SMB (require authentication for shared resources).
+
+.DESCRIPTION
+    Ensures the registry entry:
+      HKLM:\SOFTWARE\Policies\Microsoft\Windows\LanmanWorkstation\AllowInsecureGuestAuth
+    is set to DWORD 0 (disabled), per STIG requirement. :contentReference[oaicite:1]{index=1}
+
+.NOTES
+    Run this script **as Administrator**
+#>
+
+# Define registry path, name, and desired value
+$regPath = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\LanmanWorkstation'
+$regName = 'AllowInsecureGuestAuth'
+$desiredValue = 0
+
+Write-Host "Applying STIG WN10-CC-000040: Disable insecure guest logons (AllowInsecureGuestAuth = 0)" -ForegroundColor Cyan
+
+# Ensure the registry path exists
+if (-not (Test-Path $regPath)) {
+    Write-Host "Registry path not found. Creating path: $regPath" -ForegroundColor Yellow
+    try {
+        New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows' -Name 'LanmanWorkstation' -Force | Out-Null
+        Write-Host "Created registry key: $regPath" -ForegroundColor Green
+    }
+    catch {
+        Write-Error "Failed to create registry path: $_"
+        exit 1
+    }
+}
+
+# Get current value if exists
+$currentValue = $null
+try {
+    $currentValue = (Get-ItemProperty -Path $regPath -Name $regName -ErrorAction Stop).$regName
+    Write-Host "Current $regName value: $currentValue" -ForegroundColor Gray
+}
+catch {
+    Write-Host "$regName not currently set." -ForegroundColor Yellow
+}
+
+# Set or update the registry value if needed
+if (($null -eq $currentValue) -or ($currentValue -ne $desiredValue)) {
+    Write-Host "Setting $regName to $desiredValue (Disabled)..." -ForegroundColor Green
+    New-ItemProperty -Path $regPath -Name $regName -PropertyType DWord -Value $desiredValue -Force | Out-Null
+} else {
+    Write-Host "$regName is already compliant ($currentValue)." -ForegroundColor Green
+}
+
+# Verification
+try {
+    $verified = (Get-ItemProperty -Path $regPath -Name $regName -ErrorAction Stop).$regName
+    Write-Host "Verified: $regName = $verified" -ForegroundColor Cyan
+}
+catch {
+    Write-Error "Failed to verify the registry value: $_"
+}
+
+Write-Host "STIG WN10-CC-000040 remediation complete." -ForegroundColor Cyan
